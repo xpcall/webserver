@@ -1,0 +1,7 @@
+port=8080
+errorDir="www/error"
+domains={
+	default={
+		dir="www"
+	}
+}
