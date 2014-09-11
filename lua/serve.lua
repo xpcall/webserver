@@ -1,7 +1,7 @@
 local function defHeaders()
 	return {
 		server=config.customServerHeader or ("PTServ "..version),
-		connection="keep-alive"
+		connection="keep-alive",
 	}
 end
 
@@ -31,6 +31,7 @@ local mime={
 	["gz"]="application/octet-stream",
 	["tar"]="application/octet-stream",
 	["exe"]="application/octet-stream",
+	["jar"]="application/octet-stream",
 	["download"]="application/octet-stream",
 }
 
@@ -46,6 +47,9 @@ end
 function servehead(cl,res)
 	local headers=res.headers
 	headers["Content-Type"]=headers["Content-Type"] or mime[res.format] or "text/plain"
+	if cl.headers["Connection"]=="close" then
+		res.headers["Connection"]="close"
+	end
 	res.code=tonumber(res.code) or 200
 	local out="HTTP/1.1 "..res.code.." "..codes[res.code].."\r\n"
 	res.data=res.data or ""
@@ -53,32 +57,43 @@ function servehead(cl,res)
 		headers["Content-Length"]=#res.data
 	end
 	for k,v in pairs(headers) do
-		out=out.k..": "..tostring(v).."\r\n"
+		out=out..k..": "..tostring(v).."\r\n"
 	end
 	cl.send(out.."\r\n")
 end
 
 function serveres(cl,res)
+	local out=""
 	servehead(cl,res)
 	if cl.method~="head" then
-		out=out..res.data
+		out=out..(res.headers["Transfer-Encoding"]=="chunked" and encodeChunked(res.data) or res.data)
 	end
+	cl.onDoneSending=cl.headers["connection"]=="close" and cl.close or receivehead
 	cl.send(out)
-	receivehead(cl) -- keep-alive
+end
+
+function err(cl,code)
+	local res={
+		code=code,
+		headers=defHeaders(),
+		format="html",
+	}
+	if code==405 then
+		res.headers.allowed="GET, POST, HEAD"
+	end
+	res.data="<center><h1>Error "..code..": "..codes[code].."</h1></center>"
+	serveres(cl,res)
 end
 
 local largef={}
 
 function serve(cl)
-	local headers=res.headers
+	local domainconf=config.domains[cl.headers["Host"]]
+	cl.path=fs.combine(domainconf.dir,cl.path)
 	if cl.method~="post" and cl.method~="get" and cl.method~="head" then
-		local res={
-			code=405,
-			headers=defHeaders(),
-		}
-		res.headers.allowed="GET, POST, HEAD"
-		return serveres(cl,res)
+		err(405)
 	end
+	local path=cl.path
 	local ext=path:match("%.(.-)$") or "txt"
 	local res={
 		headers=defHeaders(),
@@ -92,16 +107,33 @@ function serve(cl)
 		res.format="html"
 		runlua(fs.read(path),cl,res)
 	else
-		servehead()
-		if fs.size(path)>16384 then
+		if fs.isDir(path) then
+			local found
+			for k,v in pairs(fs.list(path)) do
+				if v:match("^index%..+") then
+					path=fs.combine(path,v)
+					res.format=path:match("%.(.-)$") or "txt"
+					found=true
+					break
+				end
+			end
+			if not found then
+				return err(404)
+				-- todo: file listing
+			end
+		end
+		-- todo: better large file support
+		--[[if fs.size(path)>16384 then
 			if largef[path] then
 				table.insert(largef[path],{cl,res})
 			else
+				largef[path]={{cl,res}}
 				hook.new(hook.timer(0.5),function()
-
 				end)
 			end
-		end
+		end]]
+		res.data=fs.read(path)
+		serveres(cl,res)
 	end
 end
 

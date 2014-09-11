@@ -13,22 +13,31 @@ function client.new(sk)
 			if txt then
 				cl.sbuffer=cl.sbuffer..txt
 			end
-			local t,err,c=sk:send(cl.sbuffer,bfrind)
+			local t,err,c=sk:send(cl.sbuffer)
 			if not t and err~="timeout" then
 				cl.onError("send",err)
 				return
 			elseif not c then
+				hook.remrsocket(cl.sk)
 				bfrind=1
 				cl.sbuffer=""
-				buffering[cl]=nil
+				buffering[cl.sk]=nil
+				if cl.onDoneSending then
+					local f=cl.onDoneSending
+					cl.onDoneSending=nil
+					f(cl)
+				end
 				return
+			elseif not buffering[cl.sk] then
+				hook.newrsocket(cl.sk)
+				buffering[cl.sk]=cl
 			end
-			buffering[cl]=true
 			cl.sbuffer=cl.sbuffer:sub(c+1)
 		end,
 		close=function(...)
 			-- cleanup
 			hook.remsocket(sk)
+			hook.remrsocket(sk)
 			clients[sk]=nil
 			buffering[cl]=nil
 			sk:close()
@@ -38,7 +47,6 @@ function client.new(sk)
 		end,
 		onError=function(t,err)
 			cl.close()
-			print("client "..t.." error "..err)
 		end,
 		rbuffer="",
 		receive=function(mode)
@@ -63,26 +71,22 @@ function client.new(sk)
 end
 
 hook.new("select",function(rq,sq)
-	print(rq,sq)
 	for k,v in pairs(sq) do
-		print("sendq")
-		if buffering[v] then
-			print("buff")
-			buffering[v].send()
+		if type(v)~="number" then
+			if buffering[v] then
+				buffering[v].send()
+			end
 		end
 	end
 	for k,v in pairs(rq) do
 		if clients[v] then
-			print("rec")
 			local cl=clients[v]
 			local s2,err,s=v:receive("*a")
 			if err=="closed" then
 				cl.close()
 			else
 				cl.rbuffer=cl.rbuffer..(s or s2)
-				print("buffer size "..#cl.rbuffer)
 				if cl.onReceive then
-					print("triggering onReceive")
 					cl.onReceive()
 				end
 			end

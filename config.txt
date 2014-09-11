@@ -1,5 +1,4 @@
-port=8080
-errorDir="www/error"
+port=8081
 domains={
 	default={
 		dir="www"

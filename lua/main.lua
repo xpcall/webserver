@@ -3,7 +3,8 @@
 --  increase efficiency by using ffi char[] instead of strings
 --  more speed debugging
 
-local socket=require("socket")
+socket=require("socket")
+lfs=require("lfs")
 version="0.1"
 
 -- read config
@@ -43,12 +44,13 @@ dofile("lua/serve.lua")
 local sv=assert(socket.bind(config.bindTo or "*",config.port))
 sv:settimeout(0) -- non-blocking
 hook.newsocket(sv)
+print("listening on port "..config.port)
 
 hook.new("select",function(rq,sq)
 	if rq[sv] then
 		local sk=assert(sv:accept())
 		while sk do
-			print("got client")
+			print("got client "..sk:getfd())
 			hook.newsocket(sk)
 			sk:settimeout(0)
 			client.new(sk)
@@ -60,7 +62,6 @@ end,"server socket manager")
 -- main blocking loop
 
 while true do
-	print("select")
 	local rq,sq=socket.select(hook.sel,hook.rsel,math.min(5,hook.interval or 5))
 	hook.queue("select",rq,sq)
 end
