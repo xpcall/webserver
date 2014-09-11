@@ -51,7 +51,7 @@ hook.new("select",function(rq,sq)
 	if rq[sv] then
 		local sk=assert(sv:accept())
 		while sk do
-			print("got client "..sk:getfd())
+			print("got client "..sk:getfd().." "..(sk:getpeername() or "*"))
 			hook.newsocket(sk)
 			sk:settimeout(0)
 			client.new(sk)

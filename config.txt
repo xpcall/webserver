@@ -1,6 +1,10 @@
 port=8081
+bindTo="*"
 domains={
 	default={
 		dir="www"
+	},
+	["pt.ptoast.tk"]={
+		dir="testdomain",
 	}
 }
