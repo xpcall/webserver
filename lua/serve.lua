@@ -5,7 +5,7 @@ local function defHeaders()
 	}
 end
 
-local codes={
+head_codes={
 	[200]="OK",
 	[302]="Found",
 	[304]="Not Modified",
@@ -51,7 +51,7 @@ function servehead(cl,res)
 		res.headers["Connection"]="close"
 	end
 	res.code=tonumber(res.code) or 200
-	local out="HTTP/1.1 "..res.code.." "..codes[res.code].."\r\n"
+	local out="HTTP/1.1 "..res.code.." "..head_codes[res.code].."\r\n"
 	res.data=res.data or ""
 	if not headers["Content-Length"] and res.data then
 		headers["Content-Length"]=#res.data
@@ -72,7 +72,7 @@ function serveres(cl,res)
 	cl.send(out)
 end
 
-function err(cl,code)
+local function err(cl,code)
 	local res={
 		code=code,
 		headers=defHeaders(),
@@ -81,12 +81,11 @@ function err(cl,code)
 	if code==405 then
 		res.headers.allowed="GET, POST, HEAD"
 	end
-	res.data="<center><h1>Error "..code..": "..codes[code].."</h1></center>"
+	res.data="<center><h1>Error "..code..": "..assert(head_codes[code],code).."</h1></center>"
 	serveres(cl,res)
 end
 
-local largef={}
-
+--local largef={}
 function serve(cl)
 	local domainconf=config.domains[cl.headers["Host"]]
 	cl.path=fs.combine(domainconf.dir,cl.path)
@@ -105,11 +104,13 @@ function serve(cl)
 		res.data="<center><h1>404 Not Found</h1></center>"
 	elseif ext=="lua" then
 		res.format="html"
-		runlua(fs.read(path),cl,res)
+		return runlua(fs.read(path),cl,res)
 	else
 		if fs.isDir(path) then
 			local found
+			local dirout='<h3><a href="..">..</a><br>'
 			for k,v in pairs(fs.list(path)) do
+				dirout=dirout..'<a href="'..v..'">'..v..'</a><br>'
 				if v:match("^index%..+") then
 					path=fs.combine(path,v)
 					res.format=path:match("%.(.-)$") or "txt"
@@ -118,8 +119,10 @@ function serve(cl)
 				end
 			end
 			if not found then
-				return err(404)
-				-- todo: file listing
+				res.format="html"
+				res.data=dirout
+				res.code=200
+				return serveres(cl,res)
 			end
 		end
 		-- todo: better large file support
@@ -132,7 +135,16 @@ function serve(cl)
 				end)
 			end
 		end]]
+		local nm=(cl.headers["If-None-Match"] or ""):match('^"(%x+)"$')
+		if nm then
+			if fs.modified(path)==tonumber(nm,16) then
+				return err(cl,304)
+			end
+		end
 		res.data=fs.read(path)
+		res.headers["ETag"]='"'..string.format("%X",fs.modified(path))..'"'
+		res.headers["Cache-Control"]=""
+		print("serving "..path)
 		serveres(cl,res)
 	end
 end

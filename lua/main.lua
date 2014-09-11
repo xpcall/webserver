@@ -37,6 +37,7 @@ dofile("lua/fs.lua")
 dofile("lua/hook.lua")
 dofile("lua/client.lua")
 dofile("lua/receivehead.lua")
+dofile("lua/runlua.lua")
 dofile("lua/serve.lua")
 
 -- start server

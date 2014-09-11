@@ -62,7 +62,7 @@ fs={
 	end,
 	modified=function(file)
 		local attr=getAttr(file)
-		return attr and attr.modified
+		return attr and attr.modification
 	end,
 	size=function(file)
 		local attr=getAttr(file)

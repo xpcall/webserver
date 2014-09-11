@@ -36,7 +36,7 @@ function receivehead(cl)
 				if line=="" then
 					return serve(cl)
 				end
-				local header,val=line:match("%S+: (.+)")
+				local header,val=line:match("(%S+): (.+)")
 				if header then
 					cl.headers[header]=val
 				end
