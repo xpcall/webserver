@@ -90,11 +90,11 @@ function serve(cl)
 	local domain=(cl.headers["Host"] or ""):match("^[^:]*")
 	local domainconf=config.domains[domain]
 	print("Domain: "..tostring(domain))
-	cl.path=fs.combine(domainconf.dir,cl.path)
+	cl.rpath=fs.combine(domainconf.dir,cl.path)
 	if cl.method~="post" and cl.method~="get" and cl.method~="head" then
 		err(405)
 	end
-	local path=cl.path
+	local path=cl.rpath
 	local ext=path:match("%.(.-)$") or "txt"
 	local res={
 		headers=defHeaders(),
@@ -112,7 +112,8 @@ function serve(cl)
 			local found
 			local dirout='<h3><a href="..">..</a><br>'
 			for k,v in pairs(fs.list(path)) do
-				dirout=dirout..'<a href="'..v..'">'..v..'</a><br>'
+				local p="/"..fs.combine(cl.path,v)
+				dirout=dirout..'<a href="'..p..'">'..v..'</a><br>'
 				if v:match("^index%..+") then
 					path=fs.combine(path,v)
 					res.format=path:match("%.(.-)$") or "txt"

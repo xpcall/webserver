@@ -1,7 +1,4 @@
 -- webserver by PixelToast
--- TODO:
---  increase efficiency by using ffi char[] instead of strings
---  more speed debugging
 
 socket=require("socket")
 lfs=require("lfs")
