@@ -1,10 +1,10 @@
 port=8081
 bindTo="*"
 domains={
-default={
-dir="www"
-},
-["pt.ptoast.tk"]={
-dir="testdomain",
-}
+	default={
+		dir="www/default"
+	},
+	["pt.ptoast.tk"]={
+		dir="www/testdomain",
+	}
 }

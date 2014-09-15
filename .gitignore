@@ -1,2 +1,4 @@
 config.txt
-#This way, you can have custom settings for things. Also, .gitignore a www folder?
+#This way, you can have custom settings for things.
+www/
+#Block off the www folder -- Now your websites aren't pushed.
