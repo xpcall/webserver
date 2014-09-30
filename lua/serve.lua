@@ -1,8 +1,8 @@
-local function defHeaders()
-	return {
-		server=config.customServerHeader or ("PTServ "..version),
-		connection="keep-alive",
-	}
+local function defHeaders(h)
+	h=h or {}
+	h.server=config.customServerHeader or ("PTServ "..version)
+	h.connection="keep-alive"
+	return h
 end
 
 head_codes={
@@ -72,10 +72,10 @@ function serveres(cl,res)
 	cl.send(out)
 end
 
-local function err(cl,code)
+local function err(cl,code,h)
 	local res={
 		code=code,
-		headers=defHeaders(),
+		headers=defHeaders(h),
 		format="html",
 	}
 	if code==405 then
@@ -86,14 +86,48 @@ local function err(cl,code)
 end
 
 --local largef={}
+local configmodified=fs.modified(configfile)
 function serve(cl)
-	local domain=(cl.headers["Host"] or ""):match("^[^:]*")
-	local domainconf=config.domains[domain]
-	print("Domain: "..tostring(domain))
-	cl.rpath=fs.combine(domainconf.dir,cl.path)
-	if cl.method~="post" and cl.method~="get" and cl.method~="head" then
-		err(405)
+	-- reload config
+	if configmodified~=fs.modified(configfile) then
+		configmodified=fs.modified(configfile)
+		loadconfig()
 	end
+	
+	local domain=(cl.headers["Host"] or ""):match("^[^:]*")
+	local dconfig=config.domains[domain]
+	
+	if dconfig.proxy then
+		local host,port=dconfig.proxy:match("^%[?(.+)%]?:(.-)$")
+		print("proxy "..(host or dconfig.proxy)..":"..(port or 80))
+		local sv=client.new(socket.connect(host or dconfig.proxy,port or 80),true)
+		local h=cl.method:upper().." "..cl.url.." HTTP/1.1\r\n"
+		for k,v in pairs(cl.headers) do
+			h=h..k..": "..v.."\r\n"
+		end
+		print(h)
+		sv.send(h.."\r\n")
+		sv.onReceive=function()
+			print("proxy sv receive")
+			cl.send(sv.rbuffer)
+			sv.rbuffer=""
+		end
+		cl.onReceive=function()
+			print("proxy cl receive")
+			sv.send(cl.rbuffer)
+			cl.rbuffer=""
+		end
+		sv.onClose=cl.close
+		cl.onClose=sv.close
+		return
+	end
+	
+	cl.rpath=fs.combine(dconfig.dir,cl.path)
+	
+	if cl.method~="post" and cl.method~="get" and cl.method~="head" then
+		return err(cl,405)
+	end
+	
 	local path=cl.rpath
 	local ext=path:match("%.(.-)$") or "txt"
 	local res={
@@ -101,9 +135,10 @@ function serve(cl)
 		code=200,
 		format=ext,
 	}
-	if not fs.exists(path) then
-		res.code=404
-		res.data="<center><h1>404 Not Found</h1></center>"
+	if dconfig.redirect then
+		return err(cl,302,{["Location"]=dconfig.redirect})
+	elseif not fs.exists(path) then
+		return err(cl,404)
 	elseif ext=="lua" then
 		res.format="html"
 		return runlua(fs.read(path),cl,res)
@@ -146,7 +181,7 @@ function serve(cl)
 		end
 		res.data=fs.read(path)
 		res.headers["ETag"]='"'..string.format("%X",fs.modified(path))..'"'
-		res.headers["Cache-Control"]=""
+		--res.headers["Cache-Control"]=""
 		print("serving "..path)
 		serveres(cl,res)
 	end

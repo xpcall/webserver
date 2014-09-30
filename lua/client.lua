@@ -4,9 +4,10 @@
 clients={}
 client={}
 local buffering={}
-function client.new(sk)
+function client.new(sk,norec)
 	local cl
 	cl={
+		closed=false,
 		sk=sk,
 		sbuffer="",
 		send=function(txt)
@@ -18,6 +19,7 @@ function client.new(sk)
 				cl.onError("send",err)
 				return
 			elseif not c then
+				print("done sending")
 				hook.remrsocket(cl.sk)
 				bfrind=1
 				cl.sbuffer=""
@@ -35,17 +37,23 @@ function client.new(sk)
 			cl.sbuffer=cl.sbuffer:sub(c+1)
 		end,
 		close=function(...)
-			-- cleanup
-			hook.remsocket(sk)
-			hook.remrsocket(sk)
-			clients[sk]=nil
-			buffering[cl]=nil
-			sk:close()
-			if cl.onClose then
-				cl.onClose(...)
+			print("cl tryclose")
+			if not cl.closed then
+				print("cl close")
+				-- cleanup
+				hook.remsocket(sk)
+				hook.remrsocket(sk)
+				clients[sk]=nil
+				buffering[cl]=nil
+				sk:close()
+				cl.closed=true
+				if cl.onClose then
+					cl.onClose(...)
+				end
 			end
 		end,
 		onError=function(t,err)
+			print("cl error "..err)
 			cl.close()
 		end,
 		rbuffer="",
@@ -66,7 +74,9 @@ function client.new(sk)
 		end,
 	}
 	clients[sk]=cl
-	receivehead(cl)
+	if not norec then
+		receivehead(cl)
+	end
 	return cl
 end
 

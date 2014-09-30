@@ -17,3 +17,13 @@ function parsepost(url)
 	end
 	return out
 end
+
+function merge(a,b)
+	for k,v in pairs(a) do
+		if type(v)=="table" and b[k] then
+			merge(v,b[k])
+		else
+			b[k]=v
+		end
+	end
+end
